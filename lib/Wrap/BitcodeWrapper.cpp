@@ -35,6 +35,8 @@ BitcodeWrapper::BitcodeWrapper(const char *bitcode, size_t bitcodeSize)
     mTargetAPI = wrapperer.getAndroidTargetAPI();
     mCompilerVersion = wrapperer.getAndroidCompilerVersion();
     mOptimizationLevel = wrapperer.getAndroidOptimizationLevel();
+    mBitcodeType = wrapperer.getAndroidBitcodeType();
+    mLDFlags = wrapperer.getAndroidLDFlags();
   } else if (wrapperer.IsInputBitcodeFile()) {
     mFileType = BC_RAW;
   }
@@ -49,4 +51,3 @@ BitcodeWrapper::~BitcodeWrapper() {
 bool BitcodeWrapper::unwrap() {
   return mFileType != BC_NOT_BC;
 }
-

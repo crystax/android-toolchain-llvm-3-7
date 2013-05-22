@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <stdint.h>
+#include <vector>
 
 struct AndroidBitcodeWrapper {
   uint32_t Magic;
@@ -54,6 +55,8 @@ class BitcodeWrapper {
   uint32_t mTargetAPI;
   uint32_t mCompilerVersion;
   uint32_t mOptimizationLevel;
+  uint32_t mBitcodeType;
+  std::string mLDFlags;
 
  public:
   /**
@@ -108,6 +111,19 @@ class BitcodeWrapper {
     return mOptimizationLevel;
   }
 
+  /**
+   * \return bitcode type for this bitcode.
+   */
+  uint32_t getBitcodeType() const {
+    return mBitcodeType;
+  }
+
+  /**
+   * \return linker flags for this bitcode.
+   */
+  const std::string& getLDFlags() const {
+    return mLDFlags;
+  }
 };
 
 /**

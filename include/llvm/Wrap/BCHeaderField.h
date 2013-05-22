@@ -34,9 +34,17 @@ class BCHeaderField {
     kInvalid = 0,
     kBitcodeHash = 1,
     kAndroidCompilerVersion = 0x4001,
-    kAndroidOptimizationLevel = 0x4002
+    kAndroidOptimizationLevel = 0x4002,
+    kAndroidBitcodeType = 0x5001,
+    kAndroidLDFlags = 0x5002
   } Tag;
   typedef uint16_t FixedSubfield;
+
+  typedef enum {
+    BC_Relocatable  = 0x00000000,
+    BC_SharedObject = 0x00000001,
+    BC_Executable   = 0x00000002
+  } BitcodeType;
 
   BCHeaderField(Tag ID, size_t len, uint8_t* data) :
       ID_(ID), len_(len), data_(data) {}

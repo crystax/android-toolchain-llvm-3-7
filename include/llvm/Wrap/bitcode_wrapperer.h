@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string>
 #include <vector>
 
 #include "llvm/Wrap/support_macros.h"
@@ -89,6 +90,14 @@ class BitcodeWrapperer {
 
   uint32_t getAndroidOptimizationLevel() {
     return android_optimization_level_;
+  }
+
+  uint32_t getAndroidBitcodeType() {
+    return android_bitcode_type_;
+  }
+
+  std::string getAndroidLDFlags() {
+    return android_ldflags_;
   }
 
   ~BitcodeWrapperer();
@@ -204,6 +213,8 @@ class BitcodeWrapperer {
   uint32_t android_target_api_;
   uint32_t android_compiler_version_;
   uint32_t android_optimization_level_;
+  uint32_t android_bitcode_type_;
+  std::string android_ldflags_;
 
   // PNaCl bitcode version
   uint32_t pnacl_bc_version_;
