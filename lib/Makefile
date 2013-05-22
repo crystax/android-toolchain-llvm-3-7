@@ -14,4 +14,6 @@ PARALLEL_DIRS := IR AsmParser Bitcode Analysis Transforms CodeGen Target      \
                  ExecutionEngine Linker LTO MC Object Option DebugInfo        \
                  IRReader LineEditor ProfileData Passes LibDriver
 
+PARALLEL_DIRS += Wrap
+
 include $(LEVEL)/Makefile.common
