@@ -67,6 +67,12 @@ static cl::opt<bool> ExperimentalVectorWideningLegalization(
              "rather than promotion."),
     cl::Hidden);
 
+// Force to store the stack protector cookie in the global variable
+static cl::opt<bool> ForceGlobalVarStackProtectorCookie(
+  "x86-force-gv-stack-cookie",
+  cl::init(false),
+  cl::desc("Store the stack protector cookie in the global variable"));
+
 // Forward declarations.
 static SDValue getMOVL(SelectionDAG &DAG, SDLoc dl, EVT VT, SDValue V1,
                        SDValue V2);
@@ -1947,6 +1953,9 @@ X86TargetLowering::findRepresentativeClass(const TargetRegisterInfo *TRI,
 bool X86TargetLowering::getStackCookieLocation(unsigned &AddressSpace,
                                                unsigned &Offset) const {
   if (!Subtarget->isTargetLinux())
+    return false;
+
+  if (ForceGlobalVarStackProtectorCookie)
     return false;
 
   if (Subtarget->is64Bit()) {
