@@ -34,6 +34,8 @@ PARALLEL_DIRS := opt llvm-as llvm-dis llc llvm-ar llvm-nm llvm-link \
                  llvm-profdata llvm-symbolizer obj2yaml yaml2obj llvm-c-test \
                  llvm-cxxdump verify-uselistorder dsymutil llvm-pdbdump
 
+PARALLEL_DIRS += ndk-link
+
 # If Intel JIT Events support is configured, build an extra tool to test it.
 ifeq ($(USE_INTEL_JITEVENTS), 1)
   PARALLEL_DIRS += llvm-jitlistener
