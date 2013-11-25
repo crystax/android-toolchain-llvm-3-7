@@ -20,7 +20,9 @@
 #include <cstdlib>
 #include <memory>
 #include <utility>
-#include <vector>
+
+#include "ExpandVAArgPass.h"
+#include "ReplaceUnwindHeaderSizePass.h"
 
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -29,6 +31,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Pass.h"
 #include "llvm/PassManager.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -42,7 +45,6 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/Wrap/BitcodeWrapper.h"
 
 using namespace llvm;
 
@@ -50,24 +52,15 @@ static cl::opt<std::string>
 InputFilename(cl::Positional, cl::desc("<input bitcode file>"),
               cl::value_desc("filename"));
 
+
+static cl::opt<std::string>
+ArchName("arch", cl::desc("Specify the arch name to translate: arm, x86, mips"),
+         cl::value_desc("arch name"),
+         cl::Required);
+
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("Override output filename"),
                cl::value_desc("filename"));
-
-static cl::opt<bool>
-Strip("strip-all", cl::desc("Strip all symbol info"));
-
-static cl::opt<bool>
-StripDebug("strip-debug", cl::desc("Strip debugger symbol info"));
-
-static cl::alias A0("s", cl::desc("Alias for --strip-all"),
-  cl::aliasopt(Strip));
-
-static cl::alias A1("S", cl::desc("Alias for --strip-debug"),
-  cl::aliasopt(StripDebug));
-
-static cl::alias A2("strip-unneeded", cl::desc("Alias for -strip-all"),
-  cl::aliasopt(Strip));
 
 
 static uint32_t ReadInt32(unsigned char *wrapper, size_t offset) {
@@ -125,8 +118,52 @@ static size_t ReadBitcodeWrapper(int input_fd, unsigned char **wrapper, size_t& 
   return header_size;
 }
 
+static void AddTargetTranslationPass(PassManager &PM) {
+  ExpandVAArgPass *VAArgPass = NULL;
+  ReplaceUnwindHeaderSizePass *UnwindPass = NULL;
 
-static void StripBitcode(const char *Bitcode, size_t BitcodeSize, std::string &BCString, LLVMContext &Context) {
+  if (ArchName == "arm") {
+    VAArgPass = createARMExpandVAArgPass();
+    UnwindPass = createARMReplaceUnwindHeaderSizePass();
+  }
+  else if (ArchName == "x86") {
+    VAArgPass = createX86ExpandVAArgPass();
+    UnwindPass = createX86ReplaceUnwindHeaderSizePass();
+  }
+  else if (ArchName == "mips") {
+    VAArgPass = createMipsExpandVAArgPass();
+    UnwindPass = createMipsReplaceUnwindHeaderSizePass();
+  }
+  else {
+    errs() << "'" << ArchName << "' is not supported!\n";
+    exit(1);
+  }
+
+  // Add target specific pass
+  PM.add(new DataLayoutPass());
+  PM.add(VAArgPass);
+  PM.add(UnwindPass);
+}
+
+static void SetModuleTargetTriple(llvm::Module &M) {
+  if (ArchName == "arm") {
+    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                    "i64:64:64-f32:32:32-f64:64:64-"
+                    "v64:64:64-v128:64:128-a0:0:64-n32-S64");
+  } else if (ArchName == "x86") {
+    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                    "i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-"
+                    "a0:0:64-f80:32:32-n8:16:32-S128");
+  } else if (ArchName == "mips") {
+    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:32-i16:16:32-i32:32:32-"
+                    "i64:64:64-f32:32:32-f64:64:64-v64:64:64-n32-S64");
+  } else {
+    errs() << "'" << ArchName << "' is not supported!\n";
+    exit(1);
+  }
+}
+
+static void TranslateBitcode(const char *Bitcode, size_t BitcodeSize, std::string &BCString, LLVMContext &Context) {
   StringRef input_data(Bitcode, BitcodeSize);
   MemoryBufferRef buffer(input_data, "");
 
@@ -136,17 +173,14 @@ static void StripBitcode(const char *Bitcode, size_t BitcodeSize, std::string &B
   }
 
   std::unique_ptr<Module> M(Result.get());
+  SetModuleTargetTriple(*M);
+
   raw_string_ostream BCStream(BCString);
 
   PassManager PM;
 
+  AddTargetTranslationPass(PM);
   PM.add(createVerifierPass());
-  PM.add(new DataLayoutPass());
-
-  // Strip debug info and symbols.
-  if (Strip || StripDebug)
-    PM.add(createStripSymbolsPass(StripDebug && !Strip));
-
   PM.add(createBitcodeWriterPass(BCStream));
   PM.run(*M.get());
   BCStream.flush();
@@ -160,7 +194,7 @@ int main(int argc, char **argv) {
   llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
   LLVMContext &Context = getGlobalContext();
 
-  cl::ParseCommandLineOptions(argc, argv, "Bitcode strip tool\n");
+  cl::ParseCommandLineOptions(argc, argv, "Bitcode translation tool\n");
 
   int input_fd = open(InputFilename.c_str(), O_RDONLY);
 
@@ -179,9 +213,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Strip bitcode
+  // Translate bitcode
   std::string BCString;
-  StripBitcode(bitcode, bitcode_size, BCString, Context);
+  TranslateBitcode(bitcode, bitcode_size, BCString, Context);
 
   // Update bitcode size
   WriteInt32(wrapper, 12, BCString.length());
@@ -192,7 +226,7 @@ int main(int argc, char **argv) {
 
   // Output stripped bitcode
   std::error_code EC;
-  tool_output_file Out(OutputFilename, EC, sys::fs::F_None);
+  tool_output_file Out(OutputFilename.c_str(), EC, sys::fs::F_None);
   if (EC) {
     errs() << EC.message() << '\n';
     return 1;

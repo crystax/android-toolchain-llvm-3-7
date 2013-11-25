@@ -36,6 +36,7 @@ PARALLEL_DIRS := opt llvm-as llvm-dis llc llvm-ar llvm-nm llvm-link \
 
 PARALLEL_DIRS += ndk-link
 PARALLEL_DIRS += ndk-strip
+PARALLEL_DIRS += ndk-translate
 
 # If Intel JIT Events support is configured, build an extra tool to test it.
 ifeq ($(USE_INTEL_JITEVENTS), 1)
