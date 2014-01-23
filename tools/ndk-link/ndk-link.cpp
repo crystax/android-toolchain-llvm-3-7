@@ -135,6 +135,11 @@ static cl::opt<bool> CO11("no-warn-mismatch",
   cl::ZeroOrMore,
   cl::desc("Compatibility option: ignored"));
 
+static cl::list<std::string> CO12("rpath-link",
+  cl::ZeroOrMore,
+  cl::desc("Compatibility option: ignored"),
+  cl::value_desc("dir"));
+
 static cl::list<unsigned int> OptimizationLevel("O",
   cl::Prefix,
   cl::desc("Optimization level for bitcode compiler"));
