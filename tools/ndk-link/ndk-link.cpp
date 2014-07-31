@@ -44,6 +44,9 @@ InputFilenames(cl::Positional, cl::OneOrMore,
 static cl::opt<bool>
 Shared("shared", cl::ZeroOrMore, cl::desc("Generate shared bitcode library"));
 
+static cl::opt<bool>
+Static("static", cl::ZeroOrMore, cl::desc("Hint for generating static library"));
+
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("Override output filename"),
                 cl::value_desc("output bitcode file"));
@@ -380,6 +383,14 @@ static std::string* ProcessArgv(int argc, char **argv,
   }
   else {
     NativeFileName = sys::path::stem(OutputFilename);
+  }
+
+  if (Static) {
+    if (PIE) {
+      errs() << "Cannot use PIE with static build\n";
+      exit (1);
+    }
+    Output << "-static ";
   }
 
   std::string implied_lib = getImpliedLibName(NativeFileName);
