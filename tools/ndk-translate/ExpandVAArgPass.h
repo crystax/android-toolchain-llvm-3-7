@@ -17,6 +17,7 @@
 #ifndef EXPAND_VAARG_PASS_H
 #define EXPAND_VAARG_PASS_H
 
+#include <map>
 #include <llvm/Pass.h>
 
 namespace llvm {
@@ -24,6 +25,7 @@ namespace llvm {
   class Instruction;
   class LLVMContext;
   class Value;
+  class Type;
 } // end llvm namespace
 
 /*
@@ -35,7 +37,7 @@ namespace llvm {
  * ExpandVAArg::expandVAArg to expand va_arg.
  */
 
-class ExpandVAArgPass : public llvm::FunctionPass {
+class ExpandVAArgPass : public llvm::ModulePass {
 private:
   static char ID;
 
@@ -46,14 +48,37 @@ private:
   virtual llvm::Value *expandVAArg(llvm::Instruction *pInst) = 0;
 
 public:
-  ExpandVAArgPass() : llvm::FunctionPass(ID), mContext(NULL) { }
+  ExpandVAArgPass() : llvm::ModulePass(ID), mContext(NULL) { }
 
-  virtual bool runOnFunction(llvm::Function &pFunc);
+  virtual bool runOnModule(llvm::Module &pM);
+};
+
+
+class NDK64ExpandVAArg : public ExpandVAArgPass {
+private:
+  // Derivative work from clang/lib/CodeGen/TargetInfo.cpp.
+  virtual llvm::Value *expandVAArg(llvm::Instruction *pInst);
+  virtual void fillupVAArgFunc(llvm::Function &) = 0;
+
+protected:
+  llvm::Instruction *mVAArgInst;
+  llvm::Type *mVAArgTy;
+  llvm::Value *mVAList;
+  typedef std::map<llvm::Type*, llvm::Function*> VAArgFuncMapTy;
+  VAArgFuncMapTy mVAArgFuncs;
+
+private:
+  llvm::Function *getOrCreateFunc();
+  std::string getVAArgFuncName() const;
 };
 
 
 ExpandVAArgPass* createARMExpandVAArgPass();
 ExpandVAArgPass* createX86ExpandVAArgPass();
 ExpandVAArgPass* createMipsExpandVAArgPass();
+
+ExpandVAArgPass* createArm64ExpandVAArgPass();
+ExpandVAArgPass* createX86_64ExpandVAArgPass();
+ExpandVAArgPass* createMips64ExpandVAArgPass();
 
 #endif // EXPAND_VAARG_PASS_H

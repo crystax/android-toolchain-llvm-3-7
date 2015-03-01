@@ -22,10 +22,10 @@
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Linker/Linker.h"
-#include "llvm/PassManager.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -47,17 +47,17 @@ std::string* AndroidBitcodeLinker::GenerateBitcode() {
   std::string *BCString = new std::string;
   Module *M = linker->getModule();
 
-  PassManager PM;
+  legacy::PassManager PM;
   raw_string_ostream Bitcode(*BCString);
 
   PM.add(createVerifierPass());
-  PM.add(new DataLayoutPass());
 
   if (!Config.isDisableOpt()) {
     PassManagerBuilder PMBuilder;
     PMBuilder.Inliner = createFunctionInliningPass();
     PMBuilder.populateLTOPassManager(PM);
   }
+
   // Doing clean up passes
   if (!Config.isDisableOpt())
   {
@@ -88,7 +88,7 @@ std::string* AndroidBitcodeLinker::GenerateBitcode() {
   return BCString;
 }
 
-Module *
+std::unique_ptr<Module>
 AndroidBitcodeLinker::LoadAndroidBitcode(AndroidBitcodeItem &Item) {
   const StringRef &FN = Item.getFile();
 
@@ -97,23 +97,24 @@ AndroidBitcodeLinker::LoadAndroidBitcode(AndroidBitcodeItem &Item) {
   if (!BufferOrErr) {
     Error = "Error reading file '" + FN.str() + "'" + ": " +
             BufferOrErr.getError().message();
-    return NULL;
+    return nullptr;
   }
 
-  std::unique_ptr<MemoryBuffer> &Buffer = BufferOrErr.get();
-  BitcodeWrapper *wrapper = new BitcodeWrapper(Buffer->getBufferStart(),
-                                               Buffer->getBufferSize());
+  std::unique_ptr<MemoryBuffer> buffer = std::move(BufferOrErr.get());
+  BitcodeWrapper *wrapper = new BitcodeWrapper(buffer->getBufferStart(),
+                                               buffer->getBufferSize());
   Item.setWrapper(wrapper);
   assert(Item.getWrapper() != 0);
-  ErrorOr<Module*> Result = parseBitcodeFile(Buffer->getMemBufferRef(),
-                                             Config.getContext());
+  ErrorOr<std::unique_ptr<Module>> Result = parseBitcodeFile(buffer->getMemBufferRef(),
+                                              Config.getContext());
   if (!Result) {
     Error = "Bitcode file '" + FN.str() + "' could not be loaded."
               + Result.getError().message();
     errs() << Error << '\n';
+    return nullptr;
   }
 
-  return Result.get();
+  return std::move(Result.get());
 }
 
 void
@@ -210,7 +211,8 @@ AndroidBitcodeLinker::LinkInAndroidBitcode(AndroidBitcodeItem &Item) {
 
       Triple triple(M.get()->getTargetTriple());
 
-      if (triple.getArch() != Triple::le32 || triple.getOS() != Triple::NDK) {
+      if ((triple.getArch() != Triple::le32 && triple.getArch() != Triple::le64) ||
+          triple.getOS() != Triple::NDK) {
         Item.setNative(true);
         return error("Cannot link '" + File.str() + "', triple:" +  M.get()->getTargetTriple());
       }
@@ -281,7 +283,7 @@ const StringRef &Filename = Item.getFile();
     }
   }
 
-  std::vector<Module*> Modules;
+  std::vector<std::unique_ptr<Module>> Modules;
 
   if (arch->getAllModules(Modules, &ErrMsg))
     return error("Cannot read modules in '" + Filename.str() + "': " + ErrMsg);
@@ -291,23 +293,23 @@ const StringRef &Filename = Item.getFile();
   }
 
   // Loop over all the Modules
-  for (std::vector<Module*>::iterator I=Modules.begin(), E=Modules.end();
-       I != E; ++I) {
+  for (auto &m : Modules) {
     // Get the module we must link in.
-    Module* aModule = *I;
-    if (aModule != NULL) {
-      if (std::error_code ec = aModule->materializeAll())
-        return error("Could not load a module: " + ec.message());
+    std::unique_ptr<Module> aModule = std::move(m);
+    if (!aModule)
+      continue;
 
-      verbose("  Linking in module: " + aModule->getModuleIdentifier());
+    if (std::error_code ec = aModule->materializeAll())
+      return error("Could not load a module: " + ec.message());
 
-      assert(linker != 0);
-      // Link it in
-      if (linker->linkInModule(aModule))
-        return error("Cannot link in module '" +
-                     aModule->getModuleIdentifier() + "'");
-      delete aModule;
-    }
+    verbose("  Linking in module: " + aModule->getModuleIdentifier());
+
+    assert(linker != 0);
+    // Link it in
+    if (linker->linkInModule(aModule.get()))
+      return error("Cannot link in module '" +
+                   aModule->getModuleIdentifier() + "'");
+    aModule.reset();
   }
 
   /* Success! */
@@ -432,7 +434,6 @@ const StringRef &Filename = Item.getFile();
         verbose("  Linking in module: " + aModule->getModuleIdentifier());
 
         // Link it in
-        std::string moduleErrorMsg;
         if (linker->linkInModule(aModule))
           return error("Cannot link in module '" +
                        aModule->getModuleIdentifier() + "'");

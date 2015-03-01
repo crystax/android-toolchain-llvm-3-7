@@ -19,54 +19,13 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
+
 #include <fstream>
 #include <iomanip>
-#include <memory>
 #include <ostream>
 #include <system_error>
+
 using namespace llvm;
-
-#if 0
-// Write an integer using variable bit rate encoding. This saves a few bytes
-// per entry in the symbol table.
-static inline void writeInteger(unsigned num, std::ofstream& ARFile) {
-  while (1) {
-    if (num < 0x80) { // done?
-      ARFile << (unsigned char)num;
-      return;
-    }
-
-    // Nope, we are bigger than a character, output the next 7 bits and set the
-    // high bit to say that there is more coming...
-    ARFile << (unsigned char)(0x80 | ((unsigned char)num & 0x7F));
-    num >>= 7;  // Shift out 7 bits now...
-  }
-}
-
-// Compute how many bytes are taken by a given VBR encoded value. This is needed
-// to pre-compute the size of the symbol table.
-static inline unsigned numVbrBytes(unsigned num) {
-
-  // Note that the following nested ifs are somewhat equivalent to a binary
-  // search. We split it in half by comparing against 2^14 first. This allows
-  // most reasonable values to be done in 2 comparisons instead of 1 for
-  // small ones and four for large ones. We expect this to access file offsets
-  // in the 2^10 to 2^24 range and symbol lengths in the 2^0 to 2^8 range,
-  // so this approach is reasonable.
-  if (num < 1<<14) {
-    if (num < 1<<7)
-      return 1;
-    else
-      return 2;
-  }
-  if (num < 1<<21)
-    return 3;
-
-  if (num < 1<<28)
-    return 4;
-  return 5; // anything >= 2^28 takes 5 bytes
-}
-#endif
 
 // Create an empty archive.
 Archive* Archive::CreateEmpty(StringRef FilePath, LLVMContext& C) {

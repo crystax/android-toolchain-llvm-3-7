@@ -41,14 +41,14 @@ private:
     llvm::IRBuilder<> builder(pInst);
     const llvm::DataLayoutPass *dlp =
       getAnalysisIfAvailable<llvm::DataLayoutPass>();
-    const llvm::DataLayout &dl = dlp->getDataLayout();
+    const llvm::DataLayout *dl = &dlp->getDataLayout();
 
     llvm::Type *bp = llvm::Type::getInt8PtrTy(*mContext);
     llvm::Type *bpp = bp->getPointerTo(0);
     llvm::Value *va_list_addr_bpp = builder.CreateBitCast(va_list_addr,
                                                           bpp, "ap");
     llvm::Value *addr = builder.CreateLoad(va_list_addr_bpp, "ap.cur");
-    int64_t type_align = dl.getABITypeAlignment(ty);
+    int64_t type_align = dl->getABITypeAlignment(ty);
     llvm::Value *addr_typed;
     llvm::IntegerType *int_ty = llvm::Type::getInt32Ty(*mContext);
 
@@ -67,7 +67,7 @@ private:
     llvm::Value *aligned_addr = builder.CreateBitCast(addr_typed, bp);
     type_align = std::max((unsigned)type_align, (unsigned) 4);
     uint64_t offset =
-      llvm::RoundUpToAlignment(dl.getTypeSizeInBits(ty) / 8, type_align);
+      llvm::RoundUpToAlignment(dl->getTypeSizeInBits(ty) / 8, type_align);
     llvm::Value *next_addr =
       builder.CreateGEP(aligned_addr, llvm::ConstantInt::get(int_ty, offset),
                         "ap.next");

@@ -41,7 +41,7 @@ private:
     llvm::IRBuilder<> builder(pInst);
     const llvm::DataLayoutPass *dlp =
       getAnalysisIfAvailable<llvm::DataLayoutPass>();
-    const llvm::DataLayout &dl = dlp->getDataLayout();
+    const llvm::DataLayout *dl = &dlp->getDataLayout();
 
     llvm::Type *bp = llvm::Type::getInt8PtrTy(*mContext);
     llvm::Type *bpp = bp->getPointerTo(0);
@@ -50,7 +50,7 @@ private:
         builder.CreateBitCast(va_list_addr, bpp, "ap");
     llvm::Value *addr = builder.CreateLoad(va_list_addr_bpp, "ap.cur");
     // Handle address alignment for type alignment > 32 bits.
-    uint64_t ty_align = dl.getABITypeAlignment(ty);
+    uint64_t ty_align = dl->getABITypeAlignment(ty);
 
     if (ty_align > 4) {
       assert((ty_align & (ty_align - 1)) == 0 &&
@@ -65,7 +65,7 @@ private:
     }
     llvm::Value *addr_typed = builder.CreateBitCast(addr, pty);
 
-    uint64_t offset = llvm::RoundUpToAlignment(dl.getTypeSizeInBits(ty)/8, 4);
+    uint64_t offset = llvm::RoundUpToAlignment(dl->getTypeSizeInBits(ty)/8, 4);
     llvm::Value *next_addr = builder.CreateGEP(addr,
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*mContext), offset),
       "ap.next");

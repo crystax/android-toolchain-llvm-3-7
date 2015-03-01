@@ -75,7 +75,7 @@ namespace llvm {
                          std::vector<std::string>& symbols,
                          std::string* ErrMsg);
 
-  Module* GetBitcodeSymbols(const char *Buffer, unsigned Length,
+  std::unique_ptr<Module> GetBitcodeSymbols(const char *Buffer, unsigned Length,
                             const std::string& ModuleID,
                             LLVMContext& Context,
                             std::vector<std::string>& symbols,

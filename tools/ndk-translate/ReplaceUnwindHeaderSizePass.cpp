@@ -26,9 +26,11 @@ char ReplaceUnwindHeaderSizePass::ID = 0;
 bool ReplaceUnwindHeaderSizePass::runOnModule(llvm::Module &M) {
   bool changed = false;
   llvm::LLVMContext &ctx = M.getContext();
-  llvm::APInt unwind_hdr_size(/*numBits=*/32, /*val=*/getTargetUnwindHeaderSize());
+  const llvm::DataLayout *dl = M.getDataLayout();
+  llvm::APInt unwind_hdr_size(/*numBits=*/dl->getPointerSizeInBits(),
+                              /*val=*/getTargetUnwindHeaderSize());
   llvm::ConstantInt *size_value = llvm::ConstantInt::get(ctx, unwind_hdr_size);
-  const char *k_func_name = "__ndk_le32_getUnwindHeaderSize";
+  const char *k_func_name = "__ndk_unknown_getUnwindHeaderSize";
 
   llvm::SmallVector<llvm::Instruction*, 8> Insts;
   llvm::Function *Func = 0;

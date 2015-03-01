@@ -19,13 +19,13 @@
 
 #include <llvm/Pass.h>
 
-/*  This pass expands intrinsic __ndk_le32_getUnwindHeaderSize.
+/*  This pass expands intrinsic __ndk_unknown_getUnwindHeaderSize.
  *
  *  _Unwind_Exception has different size for each target.
  *
  *  ARM: 88
  *  Mips: 24
- *  X86: 32
+ *  Arm64, x86, x86_64, Mips64: 32
  */
 class ReplaceUnwindHeaderSizePass : public llvm::ModulePass {
 private:

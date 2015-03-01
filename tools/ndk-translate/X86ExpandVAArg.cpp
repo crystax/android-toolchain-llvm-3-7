@@ -41,7 +41,7 @@ private:
     llvm::IRBuilder<> builder(pInst);
     const llvm::DataLayoutPass *dlp =
       getAnalysisIfAvailable<llvm::DataLayoutPass>();
-    const llvm::DataLayout &dl = dlp->getDataLayout();
+    const llvm::DataLayout *dl = &dlp->getDataLayout();
 
     llvm::Type *bp = llvm::Type::getInt8PtrTy(*mContext);
     llvm::Type *bpp = bp->getPointerTo(0);
@@ -52,7 +52,7 @@ private:
     llvm::Value *addr_typed = builder.CreateBitCast(addr, pty);
 
     // X86-32 stack type alignment is always 4.
-    uint64_t offset = llvm::RoundUpToAlignment(dl.getTypeSizeInBits(ty)/8, 4);
+    uint64_t offset = llvm::RoundUpToAlignment(dl->getTypeSizeInBits(ty)/8, 4);
     llvm::Value *next_addr = builder.CreateGEP(addr,
       llvm::ConstantInt::get(llvm::Type::getInt32Ty(*mContext), offset),
       "ap.next");

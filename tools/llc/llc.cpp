@@ -212,6 +212,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   std::unique_ptr<Module> M;
   std::unique_ptr<MIRParser> MIR;
   Triple TheTriple;
+  Triple OrigTriple;
 
   bool SkipModule = MCPU == "help" ||
                     (!MAttrs.empty() && MAttrs.front() == "help");
@@ -238,6 +239,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
              << ": error: input module is broken!\n";
       return 1;
     }
+
+    OrigTriple.setTriple(M->getTargetTriple());
 
     // If we are supposed to override the target triple, do so now.
     if (!TargetTriple.empty())
@@ -294,6 +297,13 @@ static int compileModule(char **argv, LLVMContext &Context) {
   assert(M && "Should have exited if we didn't have a module!");
   if (FloatABIForCalls != FloatABI::Default)
     Options.FloatABIType = FloatABIForCalls;
+
+  if (OrigTriple.getOS() == llvm::Triple::NDK) {
+    if (OrigTriple.getArch() == llvm::Triple::le32 ||
+        OrigTriple.getArch() == llvm::Triple::le64) {
+      Options.MCOptions.MCNoExecStack = true;
+    }
+  }
 
   // Figure out where we are going to send the output.
   std::unique_ptr<tool_output_file> Out =

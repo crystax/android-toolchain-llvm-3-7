@@ -19,9 +19,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Process.h"
+
 #include <cstring>
 #include <memory>
 #include <system_error>
+
 using namespace llvm;
 
 // getMemberSize - compute the actual physical size of the file member as seen
@@ -101,11 +103,10 @@ bool ArchiveMember::replaceWith(StringRef newFile, std::string* ErrMsg) {
   else
     flags &= ~HasLongFilenameFlag;
 
-  // Get the file status info
+  // Get the status info
   sys::fs::file_status Status;
-  if (sys::fs::status(path, Status)) {
+  if (sys::fs::status(path, Status))
     return true;
-  }
 
   User = Status.getUser();
   Group = Status.getGroup();
@@ -115,9 +116,8 @@ bool ArchiveMember::replaceWith(StringRef newFile, std::string* ErrMsg) {
 
   // Determine what kind of file it is.
   sys::fs::file_magic magic = sys::fs::file_magic::unknown;
-  if (sys::fs::identify_magic(path, magic)) {
+  if (sys::fs::identify_magic(path, magic))
     return true;
-  }
   if (magic == sys::fs::file_magic::bitcode)
     flags |= BitcodeFlag;
   else
@@ -135,14 +135,14 @@ Archive::Archive(StringRef filename, LLVMContext &C)
 
 bool
 Archive::mapToMemory(std::string* ErrMsg) {
-  ErrorOr<std::unique_ptr<MemoryBuffer> > FileOrErr =
+  ErrorOr<std::unique_ptr<MemoryBuffer> > File =
       MemoryBuffer::getFile(archPath.str());
-  if (!FileOrErr) {
+  if (!File) {
     if (ErrMsg)
-      *ErrMsg = FileOrErr.getError().message();
+      *ErrMsg = File.getError().message();
     return true;
   }
-  mapfile = FileOrErr.get().release();
+  mapfile = File.get().release();
   base = mapfile->getBufferStart();
   return false;
 }
@@ -162,7 +162,7 @@ void Archive::cleanUpMemory() {
   // Delete any Modules and ArchiveMember's we've allocated as a result of
   // symbol table searches.
   for (ModuleMap::iterator I=modules.begin(), E=modules.end(); I != E; ++I ) {
-    delete I->second.first;
+    I->second.first.reset();
     delete I->second.second;
   }
 }
@@ -196,58 +196,52 @@ static void getSymbols(Module*M, std::vector<std::string>& symbols) {
 }
 
 // Get just the externally visible defined symbols from the bitcode
-bool llvm::GetBitcodeSymbols(StringRef FileName,
+bool llvm::GetBitcodeSymbols(StringRef fName,
                              LLVMContext& Context,
                              std::vector<std::string>& symbols,
                              std::string* ErrMsg) {
   ErrorOr<std::unique_ptr<MemoryBuffer> > BufferOrErr =
-      MemoryBuffer::getFileOrSTDIN(FileName);
+      MemoryBuffer::getFileOrSTDIN(fName);
   if (!BufferOrErr) {
-    if (ErrMsg) {
-      *ErrMsg = "Could not open file '" + FileName.str() + "'" + ": " +
-                BufferOrErr.getError().message();
-    }
+    if (ErrMsg) *ErrMsg = "Could not open file '" + fName.str() + "': " +
+                          BufferOrErr.getError().message();
     return true;
   }
 
-  ErrorOr<Module*> M =
+  ErrorOr<std::unique_ptr<Module>> Result =
       parseBitcodeFile(BufferOrErr.get()->getMemBufferRef(), Context);
-  if (!M) {
-    if (ErrMsg) {
-      *ErrMsg = M.getError().message();
-    }
+  if (!Result) {
+    if (ErrMsg) *ErrMsg = Result.getError().message();
     return true;
   }
 
   // Get the symbols
-  getSymbols(M.get(), symbols);
+  getSymbols(Result.get().get(), symbols);
 
   // Done with the module.
-  delete M.get();
+  Result.get().reset();
   return true;
 }
 
-Module*
+std::unique_ptr<Module>
 llvm::GetBitcodeSymbols(const char *BufPtr, unsigned Length,
                         const std::string& ModuleID,
                         LLVMContext& Context,
                         std::vector<std::string>& symbols,
                         std::string* ErrMsg) {
   // Get the module.
-  MemoryBufferRef Buffer(StringRef(BufPtr, Length), ModuleID.c_str());
+  MemoryBufferRef Buffer(StringRef(BufPtr, Length), ModuleID);
 
-  llvm::ErrorOr<Module*> M = parseBitcodeFile(Buffer, Context);
-  if (!M) {
-    if (ErrMsg) {
-      *ErrMsg = M.getError().message();
-    }
-    return 0;
+  ErrorOr<std::unique_ptr<Module>> Result = parseBitcodeFile(Buffer, Context);
+  if (!Result) {
+    if (ErrMsg) *ErrMsg = Result.getError().message();
+    return nullptr;
   }
 
   // Get the symbols
-  getSymbols(M.get(), symbols);
+  getSymbols(Result.get().get(), symbols);
 
   // Done with the module. Note that it's the caller's responsibility to delete
   // the Module.
-  return M.get();
+  return std::move(Result.get());
 }

@@ -235,9 +235,9 @@ def locate_tools():
     arch = get_arch_for_abi(ABI)
     gcc_bin = gcc_toolchain_for_arch(arch) + '/bin/'
 
-    (found_translate, TRANSLATE_CMD) = find_program('le32-none-ndk-translate', [pwd, llvm_bin])
+    (found_translate, TRANSLATE_CMD) = find_program('ndk-translate', [pwd, llvm_bin])
     if found_translate != True:
-        error('Cannot find le32-none-ndk-translate')
+        error('Cannot find ndk-translate')
 
     (found_llc,  LLC_CMD)  = find_program('llc', [pwd, llvm_bin])
     if found_llc != True:

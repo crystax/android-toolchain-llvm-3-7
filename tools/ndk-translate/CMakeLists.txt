@@ -10,14 +10,17 @@ set(LLVM_LINK_COMPONENTS
   selectiondag
   )
 
-add_llvm_tool(le32-none-ndk-translate
+add_llvm_tool(ndk-translate
   ARMExpandVAArg.cpp
   ARMReplaceUnwindHeaderSize.cpp
+  Arm64ExpandVAArg.cpp
   ExpandVAArgPass.cpp
+  Mips64ExpandVAArg.cpp
   MipsExpandVAArg.cpp
   MipsReplaceUnwindHeaderSize.cpp
   ReplaceUnwindHeaderSizePass.cpp
   X86ExpandVAArg.cpp
   X86ReplaceUnwindHeaderSize.cpp
+  X86_64ExpandVAArg.cpp
   ndk-translate.cpp
   )

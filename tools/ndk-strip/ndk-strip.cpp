@@ -16,7 +16,6 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-
 #include <cstdlib>
 #include <memory>
 #include <utility>
@@ -25,11 +24,11 @@
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/PassManager.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileUtilities.h"
@@ -130,18 +129,19 @@ static void StripBitcode(const char *Bitcode, size_t BitcodeSize, std::string &B
   StringRef input_data(Bitcode, BitcodeSize);
   MemoryBufferRef buffer(input_data, "");
 
-  ErrorOr<Module*> Result = parseBitcodeFile(buffer, Context);
+  ErrorOr<std::unique_ptr<Module>> Result = parseBitcodeFile(buffer, Context);
+
   if (!Result) {
     errs() << Result.getError().message() << '\n';
+    return;
   }
 
-  std::unique_ptr<Module> M(Result.get());
+  std::unique_ptr<Module> M(std::move(Result.get()));
   raw_string_ostream BCStream(BCString);
 
-  PassManager PM;
+  legacy::PassManager PM;
 
   PM.add(createVerifierPass());
-  PM.add(new DataLayoutPass());
 
   // Strip debug info and symbols.
   if (Strip || StripDebug)
@@ -165,14 +165,14 @@ int main(int argc, char **argv) {
   int input_fd = open(InputFilename.c_str(), O_RDONLY);
 
   unsigned char *wrapper = NULL;
-  const char *bitcode = NULL;
+  char *bitcode = NULL;
 
   // Read bitcode wrapper
   size_t bitcode_size = 0;
   size_t wrapper_size = ReadBitcodeWrapper(input_fd, &wrapper, bitcode_size);
 
   // Read bitcode
-  bitcode = (const char*) calloc(1, bitcode_size);
+  bitcode = (char*) calloc(1, bitcode_size);
   size_t nread = read(input_fd, (void*) bitcode, bitcode_size);
   if (nread != bitcode_size) {
     errs() << "Could not read bitcode\n";
@@ -188,11 +188,11 @@ int main(int argc, char **argv) {
 
   // Default to input filename
   if (OutputFilename.empty())
-    OutputFilename = InputFilename;
+    OutputFilename.getValue() = InputFilename;
 
   // Output stripped bitcode
   std::error_code EC;
-  tool_output_file Out(OutputFilename, EC, sys::fs::F_None);
+  tool_output_file Out(OutputFilename.c_str(), EC, sys::fs::F_None);
   if (EC) {
     errs() << EC.message() << '\n';
     return 1;

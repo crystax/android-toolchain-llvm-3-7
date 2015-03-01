@@ -16,9 +16,7 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-
 #include <cstdlib>
-#include <memory>
 #include <utility>
 
 #include "ExpandVAArgPass.h"
@@ -125,38 +123,58 @@ static void AddTargetTranslationPass(PassManager &PM) {
   if (ArchName == "arm") {
     VAArgPass = createARMExpandVAArgPass();
     UnwindPass = createARMReplaceUnwindHeaderSizePass();
-  }
-  else if (ArchName == "x86") {
+  } else if (ArchName == "x86") {
     VAArgPass = createX86ExpandVAArgPass();
     UnwindPass = createX86ReplaceUnwindHeaderSizePass();
-  }
-  else if (ArchName == "mips") {
+  } else if (ArchName == "mips") {
     VAArgPass = createMipsExpandVAArgPass();
     UnwindPass = createMipsReplaceUnwindHeaderSizePass();
-  }
-  else {
+  } else if (ArchName == "arm64") {
+    VAArgPass = createArm64ExpandVAArgPass();
+    UnwindPass = createX86ReplaceUnwindHeaderSizePass();  // the same as x86
+  } else if (ArchName == "x86_64") {
+    VAArgPass = createX86_64ExpandVAArgPass();
+    UnwindPass = createX86ReplaceUnwindHeaderSizePass();  // the same as x86
+  } else if (ArchName == "mips64") {
+    VAArgPass = createMips64ExpandVAArgPass();
+    UnwindPass = createX86ReplaceUnwindHeaderSizePass();  // the same as x86
+  } else {
     errs() << "'" << ArchName << "' is not supported!\n";
     exit(1);
   }
 
   // Add target specific pass
   PM.add(new DataLayoutPass());
-  PM.add(VAArgPass);
-  PM.add(UnwindPass);
+  if (VAArgPass)
+    PM.add(VAArgPass);
+  if (UnwindPass)
+    PM.add(UnwindPass);
 }
 
-static void SetModuleTargetTriple(llvm::Module &M) {
+static void SetModuleTargetTriple(Module &M) {
   if (ArchName == "arm") {
-    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
-                    "i64:64:64-f32:32:32-f64:64:64-"
-                    "v64:64:64-v128:64:128-a0:0:64-n32-S64");
+    M.setTargetTriple("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                      "i64:64:64-f32:32:32-f64:64:64-"
+                      "v64:64:64-v128:64:128-a0:0:64-n32-S64");
   } else if (ArchName == "x86") {
-    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
-                    "i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-"
-                    "a0:0:64-f80:32:32-n8:16:32-S128");
+    M.setTargetTriple("e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                      "i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-"
+                      "a0:0:64-f80:32:32-n8:16:32-S128");
   } else if (ArchName == "mips") {
-    M.setDataLayout("e-p:32:32:32-i1:8:8-i8:8:32-i16:16:32-i32:32:32-"
-                    "i64:64:64-f32:32:32-f64:64:64-v64:64:64-n32-S64");
+    M.setTargetTriple("e-p:32:32:32-i1:8:8-i8:8:32-i16:16:32-i32:32:32-"
+                      "i64:64:64-f32:32:32-f64:64:64-v64:64:64-n32-S64");
+  } else if (ArchName == "arm64") {
+    M.setTargetTriple("e-p:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                      "i64:64:64-i128:128:128-f32:32:32-f64:64:64-"
+                      "f128:128:128-n32:64-S128");
+  } else if (ArchName == "x86_64") {
+    M.setTargetTriple("e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                      "i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-"
+                      "a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128");
+  } else if (ArchName == "mips64") {
+    M.setTargetTriple("e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-"
+                      "i64:64:64-f32:32:32-f64:64:64-"
+                      "f128:128:128-v64:64:64-n32:64-S128");
   } else {
     errs() << "'" << ArchName << "' is not supported!\n";
     exit(1);
@@ -167,9 +185,11 @@ static void TranslateBitcode(const char *Bitcode, size_t BitcodeSize, std::strin
   StringRef input_data(Bitcode, BitcodeSize);
   MemoryBufferRef buffer(input_data, "");
 
-  ErrorOr<Module*> Result = parseBitcodeFile(buffer, Context);
+  ErrorOr<Module *> Result = parseBitcodeFile(buffer, Context);
+
   if (!Result) {
     errs() << Result.getError().message() << '\n';
+    return;
   }
 
   std::unique_ptr<Module> M(Result.get());

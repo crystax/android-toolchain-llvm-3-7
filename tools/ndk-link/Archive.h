@@ -347,7 +347,7 @@ class Archive {
     /// the error that occurred.
     /// @returns true if an error occurred
     /// @brief Instantiate all the bitcode modules located in the archive
-    bool getAllModules(std::vector<Module*>& Modules, std::string* ErrMessage);
+    bool getAllModules(std::vector<std::unique_ptr<Module>>& Modules, std::string* ErrMessage);
 
     /// This accessor looks up the \p symbol in the archive's symbol table and
     /// returns the associated module that defines that symbol. This method can
@@ -477,7 +477,7 @@ class Archive {
     /// symbol table. It maps the file offset to a pair that consists of the
     /// associated ArchiveMember and the Module.
     /// @brief Module mapping type
-    typedef std::map<unsigned,std::pair<Module*,ArchiveMember*> >
+    typedef std::map<unsigned,std::pair<std::unique_ptr<Module>,ArchiveMember*> >
       ModuleMap;
 
 
@@ -499,9 +499,9 @@ class Archive {
   /// @name Hidden
   /// @{
   private:
-    Archive() LLVM_DELETED_FUNCTION;
-    Archive(const Archive&) LLVM_DELETED_FUNCTION;
-    Archive& operator=(const Archive&) LLVM_DELETED_FUNCTION;
+    Archive() = delete;
+    Archive(const Archive&) = delete;
+    Archive& operator=(const Archive&) = delete;
   /// @}
 };
 
