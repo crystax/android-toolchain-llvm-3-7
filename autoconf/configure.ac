@@ -205,6 +205,18 @@ if (test -d ${srcdir}/tools/polly) && (test $ENABLE_POLLY -eq 1) ; then
   AC_CONFIG_SUBDIRS([tools/polly])
 fi
 
+dnl Enable the build of debugserver
+AC_ARG_ENABLE(debugserver,
+              AS_HELP_STRING([--enable-debugserver],
+                             [Build LLDB debugserver binary (default is YES)]),,
+                             enableval=yes)
+
+case "$enableval" in
+  yes) AC_SUBST(LLDB_ENABLE_DEBUGSERVER,[1]) ;;
+  no)  AC_SUBST(LLDB_ENABLE_DEBUGSERVER,[0]) ;;
+  *) AC_MSG_ERROR([Invalid setting for --enable-debugserver. Use "yes" or "no"]) ;;
+esac
+
 dnl===-----------------------------------------------------------------------===
 dnl===
 dnl=== SECTION 2: Architecture, target, and host checks
