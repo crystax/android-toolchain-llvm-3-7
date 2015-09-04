@@ -205,6 +205,18 @@ if (test -d ${srcdir}/tools/polly) && (test $ENABLE_POLLY -eq 1) ; then
   AC_CONFIG_SUBDIRS([tools/polly])
 fi
 
+dnl Enable the build of LLDB
+AC_ARG_ENABLE(lldb,
+              AS_HELP_STRING([--enable-lldb],
+                             [Build LLDB (default is YES)]),,
+                             enableval=yes)
+
+case "$enableval" in
+  yes) AC_SUBST(ENABLE_LLDB,[1]) ;;
+  no)  AC_SUBST(ENABLE_LLDB,[0]) ;;
+  *) AC_MSG_ERROR([Invalid setting for --enable-lldb. Use "yes" or "no"]) ;;
+esac
+
 dnl Enable the build of debugserver
 AC_ARG_ENABLE(debugserver,
               AS_HELP_STRING([--enable-debugserver],

@@ -21,7 +21,7 @@ endif
 
 # Build LLDB if present. Note LLDB must be built last as it depends on
 # the wider LLVM infrastructure (including Clang).
-ifneq ($(TARGET_OS),MingW)
+ifeq ($(ENABLE_LLDB),1)
 OPTIONAL_DIRS := lldb
 endif
 
